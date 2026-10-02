@@ -178,6 +178,17 @@
     updateHud();
   }
 
+  // The distance shown beside each club: its full-power total on perfectly flat fairway in calm air, with no trees or hazards,
+  // so it never changes with the wind, slope or lie (those only affect the live numbers the caddie and the aim line use).
+  const BALL_R = 0.11;   // drawn ball radius in yards (the cup is P.CUP_R = 0.2, so the ball is a bit over half its width)
+  let maxDist = null;
+  function clubMaxDist() {
+    if (!maxDist) {
+      const flat = { h: () => 0, grad: () => ({ gx: 0, gz: 0 }), surface: () => 'fairway', treesNear: () => [], wind: { mph: 0, dir: 0, x: 0, z: 0 }, pathDist: () => ({ d: 0, s: 0, lat: 0 }), pinX: 1e6, pinZ: 0 };
+      maxDist = CLUBS.map(c => c.putter ? 0 : P.simulate(flat, { x: 0, z: 0 }, { club: c, power: 1, az: 0, err: 0, lie: 'fairway' }).total);
+    }
+    return maxDist;
+  }
   function updateDistances() {
     const az = Math.atan2(S.hole.pinZ - S.ball.z, S.hole.pinX - S.ball.x);
     S.clubDist = CLUBS.map(c => P.simulate(S.hole, S.ball, { club: c, power: 1, az, err: 0, lie: S.lie }).total);
@@ -562,7 +573,7 @@
 
     CLUBS.forEach((c, i) => {
       const el = $('cd' + i); if (!el) return;
-      el.textContent = c.putter ? '' : Math.round(S.clubDist[i]) + ' y';
+      el.textContent = c.putter ? '' : Math.round(clubMaxDist()[i]) + ' y';
       el.parentNode.classList.toggle('sel', i === S.clubIdx);
     });
 
@@ -1176,9 +1187,13 @@
         sprites.push({ d: base[2], f: () => {
           const fh = putting ? 6 : Math.max(2.6, 30 * base[2] / foc), top = proj(px, gy + fh, pz) || base;
           const ring = (rad) => { const q = []; for (let i = 0; i < 24; i++) { const t = i / 24 * Math.PI * 2, x = px + Math.cos(t) * rad, z = pz + Math.sin(t) * rad; q.push([x, h.h(x, z) + 0.04, z]); } return q; };
-          // the hole is the size of the capture radius up close. Far away it is drawn no smaller than the ball is
-          // (the ball has a minimum on-screen size), keeping the same cup : ball proportion you see when putting
-          const cupR = Math.max(P.CUP_R, (P.CUP_R / 0.085) * (putting ? 2.5 : 4) * base[2] / foc);
+          // The cup is always BALL_R : CUP_R (about 0.55 : 1) against the ball. Putting uses the true sizes; from further away both are
+          // scaled by the same on-screen minimum, so the proportion never changes as the ball flies or the camera moves.
+          let cupR = P.CUP_R;
+          if (!putting) {
+            const bq = S.fl ? flightPos() : [S.ball.x, h.h(S.ball.x, S.ball.z), S.ball.z], pb = proj(bq[0], bq[1], bq[2]);
+            if (pb) cupR = clamp(foc * BALL_R / pb[2], 4, 15) * (P.CUP_R / BALL_R) * base[2] / foc;
+          }
           poly(ring(cupR * 1.18), '#cfd3c8');      // lip of the cup
           poly(ring(cupR), '#0a0a0a');
           ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = clamp(foc * 0.05 / base[2], 1.5, 4);
@@ -1214,7 +1229,7 @@
       const p = proj(bp[0], bp[1], bp[2]), gp = proj(bp[0], h.h(bp[0], bp[2]), bp[2]);
       if (S.fl) { S.trail.push([bp[0], bp[1], bp[2]]); if (S.trail.length > 45) S.trail.shift(); }
       if (p) sprites.push({ d: p[2], f: () => {
-        const r = clamp(foc * 0.085 / p[2], putting ? 2.5 : 4, 15);   // the same true ball size in every view, with a minimum so it stays visible
+        const r = putting ? Math.max(2.5, foc * BALL_R / p[2]) : clamp(foc * BALL_R / p[2], 4, 15);   // true size when putting, with a minimum so it stays visible from far away
         if (gp) { ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(gp[0], gp[1], r * 1.1, r * 0.4, 0, 0, 7); ctx.fill(); }
         for (let i = 0; i < S.trail.length; i++) {
           const q = proj(S.trail[i][0], S.trail[i][1], S.trail[i][2]); if (!q) continue;

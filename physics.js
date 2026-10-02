@@ -10,25 +10,25 @@
   const OB = 55;            // out of bounds beyond |z| > OB
   const GREEN_R = 24;  // greens are ~1.7x bigger than before
   // speed multipliers giving a chunk -75% and a top -85% of the shot's distance (calibrated on a flat fairway)
-  const MISHIT_K = { chunk: 0.443, top: 0.56, topBy: { DR: 0.435, '3W': 0.462, '5W': 0.491, '4I': 0.519, '5I': 0.541, '6I': 0.561, '7I': 0.581, '8I': 0.599, '9I': 0.614, PW: 0.62, GW: 0.628, SW: 0.628, LW: 0.622 } };
+  const MISHIT_K = { chunk: 0.443, top: 0.56, chunkBy: {DR:0.426,'3W':0.442,'5W':0.441,'4I':0.442,'5I':0.44,'6I':0.44,'7I':0.439,'8I':0.441,'9I':0.443,PW:0.443,GW:0.448,SW:0.455,LW:0.471}, topBy: {DR:0.429,'3W':0.461,'5W':0.493,'4I':0.518,'5I':0.539,'6I':0.563,'7I':0.579,'8I':0.599,'9I':0.612,PW:0.615,GW:0.625,SW:0.624,LW:0.622} };
   const CUP_R = 0.2;   // forgiving cup
 
   // v = full-power ball speed (yd/s), ang = launch angle (deg), spin = fraction of ground speed lost on first bounce,
   // acc = accuracy sensitivity, rise = seconds for the power bar to fill
   const CLUBS = [
-    { id: 'DR', name: 'Driver',        v: 82.7, ang: 10.5, spin: 0.10, acc: 1.10, rise: 1.5 },
-    { id: '3W', name: '3 Wood',        v: 71.3, ang: 12,   spin: 0.14, acc: 1.05, rise: 1.5 },
-    { id: '5W', name: '5 Wood',        v: 65.7,   ang: 14,   spin: 0.18, acc: 1.00, rise: 1.5 },
-    { id: '4I', name: '4 Iron',        v: 60.6, ang: 15.5, spin: 0.22, acc: 0.95, rise: 1.5 },
-    { id: '5I', name: '5 Iron',        v: 57.1,   ang: 17.5, spin: 0.26, acc: 0.92, rise: 1.5 },
-    { id: '6I', name: '6 Iron',        v: 54, ang: 19.5, spin: 0.30, acc: 0.90, rise: 1.5 },
+    { id: 'DR', name: 'Driver',        v: 85.2, ang: 10.5, spin: 0.10, acc: 1.10, rise: 1.5 },
+    { id: '3W', name: '3 Wood',        v: 72.6, ang: 12,   spin: 0.14, acc: 1.05, rise: 1.5 },
+    { id: '5W', name: '5 Wood',        v: 65.86,   ang: 14.3,   spin: 0.18, acc: 1.00, rise: 1.5 },
+    { id: '4I', name: '4 Iron',        v: 61.4, ang: 15.5, spin: 0.22, acc: 0.95, rise: 1.5 },
+    { id: '5I', name: '5 Iron',        v: 57.3,   ang: 17.5, spin: 0.26, acc: 0.92, rise: 1.5 },
+    { id: '6I', name: '6 Iron',        v: 53.5, ang: 19.5, spin: 0.30, acc: 0.90, rise: 1.5 },
     { id: '7I', name: '7 Iron',        v: 50.8,   ang: 21.5, spin: 0.34, acc: 0.88, rise: 1.5 },
-    { id: '8I', name: '8 Iron',        v: 47.5, ang: 24,   spin: 0.38, acc: 0.85, rise: 1.5 },
+    { id: '8I', name: '8 Iron',        v: 47.7, ang: 24,   spin: 0.38, acc: 0.85, rise: 1.5 },
     { id: '9I', name: '9 Iron',        v: 44.1,   ang: 27,   spin: 0.42, acc: 0.82, rise: 1.5 },
-    { id: 'PW', name: 'Pitching Wedge',v: 40.8,   ang: 31,   spin: 0.46, acc: 0.80, rise: 1.5 },
-    { id: 'GW', name: 'Gap Wedge',     v: 37.6,   ang: 34,   spin: 0.50, acc: 0.78, rise: 1.5 },
-    { id: 'SW', name: 'Sand Wedge',    v: 34,   ang: 38,   spin: 0.54, acc: 0.76, rise: 1.5 },
-    { id: 'LW', name: 'Lob Wedge',     v: 30.2,   ang: 43,   spin: 0.58, acc: 0.74, rise: 1.5 },
+    { id: 'PW', name: 'Pitching Wedge',v: 41.4,   ang: 31,   spin: 0.46, acc: 0.80, rise: 1.5 },
+    { id: 'GW', name: 'Gap Wedge',     v: 38.2,   ang: 34,   spin: 0.50, acc: 0.78, rise: 1.5 },
+    { id: 'SW', name: 'Sand Wedge',    v: 34.9,   ang: 38,   spin: 0.54, acc: 0.76, rise: 1.5 },
+    { id: 'LW', name: 'Lob Wedge',     v: 29.5,   ang: 43,   spin: 0.58, acc: 0.74, rise: 1.5 },
     { id: 'PT', name: 'Putter',        v: 9.6,  ang: 0,    spin: 0,    acc: 0.3, rise: 2.4, putter: true },
   ];
 
@@ -424,7 +424,7 @@
     let nearKey = '', near = [];
     // putter: speed ~ power (distance ~ power^2) so short putts get more of the bar; full shots: distance ~ power
     let speed = club.v * (club.putter ? Math.max(o.power, 0) : Math.sqrt(Math.max(o.power, 0))) * st.speed;
-    if (o.mishit && !club.putter) speed *= o.mishit.k !== undefined ? o.mishit.k : o.mishit.type === 'chunk' ? MISHIT_K.chunk : (MISHIT_K.topBy[club.id] || MISHIT_K.top);
+    if (o.mishit && !club.putter) speed *= o.mishit.k !== undefined ? o.mishit.k : o.mishit.type === 'chunk' ? (MISHIT_K.chunkBy[club.id] || MISHIT_K.chunk) : (MISHIT_K.topBy[club.id] || MISHIT_K.top);
     let sx = 0, sz = 0;
     if (air) {
       let phi = Math.max(club.ang * Math.PI / 180 * 0.4, club.ang * Math.PI / 180 * (o.lie === 'rough' ? 0.92 : 1) + lieUp);
