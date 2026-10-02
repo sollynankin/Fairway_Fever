@@ -1085,7 +1085,7 @@
 
     ctx = mainCtx;
     }
-    ctx.drawImage(tCv, 0, 0, W, H);
+    if (tCv.width > 0 && tCv.height > 0) ctx.drawImage(tCv, 0, 0, W, H);   // (it is 0 x 0 for a moment if the window has no size yet)
 
     // green-reading arrows: which way the ball rolls at each spot. Colour and length show the slope: green = gentle, red = steep
     if (putting) {
