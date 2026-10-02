@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1f16">
+<title>Fairway Fever – Golf</title>
+<style>
+  :root {
+    --panel: rgba(12, 28, 20, .82);
+    --line: rgba(255,255,255,.14);
+    --ink: #eef6ee;
+    --dim: #a9c2b0;
+    --accent: #ffd54a;
+    --good: #5fe08a;
+    --bad: #ff6b5e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1f16; color: var(--ink);
+    font: 14px/1.35 "Segoe UI", system-ui, -apple-system, sans-serif; user-select: none; }
+  canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; backdrop-filter: blur(4px); }
+  .hidden { display: none !important; }
+
+  #info { top: 12px; left: 12px; min-width: 230px; }
+  #info .big { font-size: 20px; font-weight: 700; letter-spacing: .3px; }
+  #info .row { display: flex; justify-content: space-between; gap: 14px; color: var(--dim); }
+  #info .row b { color: var(--ink); font-weight: 600; }
+  #info .sub { color: var(--dim); font-size: 12px; margin-top: 4px; }
+
+  #wind { top: 12px; right: 12px; width: 190px; text-align: center; }
+  #wind canvas { width: 92px; height: 92px; display: block; margin: 0 auto 4px; }
+  #wind .t { font-weight: 700; font-size: 15px; }
+  #wind .s { color: var(--dim); font-size: 12px; }
+
+  #clubs { left: 12px; top: 176px; width: 190px; padding: 6px; }
+  #clubs h4 { margin: 2px 6px 6px; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .club { display: flex; justify-content: space-between; align-items: center; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; }
+  .club:hover { background: rgba(255,255,255,.07); }
+  .club.sel { background: rgba(255,213,74,.16); border-color: var(--accent); }
+  .club .n { font-weight: 600; }
+  .club .d { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .club.sel .d { color: var(--accent); }
+
+  #camctl { right: 12px; top: 162px; width: 190px; padding: 8px 10px; }
+  #camctl .camrow { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: var(--dim); }
+  #camctl .camrow span { flex: 1; }
+  #camctl .camrow button { background: rgba(255,255,255,.1); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; width: 34px; height: 26px; cursor: pointer; }
+  #camctl .camrow button:hover { background: rgba(255,213,74,.25); }
+  #mini { right: 12px; bottom: 12px; padding: 6px; }
+  #mini canvas { width: 320px; height: 170px; display: block; border-radius: 6px; }
+  #mini .cap { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; margin-top: 4px; padding: 0 2px; }
+
+  #meterWrap { left: 50%; bottom: 14px; transform: translateX(-50%); width: min(520px, calc(100vw - 600px)); min-width: 360px; padding: 10px 14px 12px; }
+  #meterTop { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; margin-bottom: 6px; }
+  #meterTop b { color: var(--ink); }
+  #meter { position: relative; height: 30px; border-radius: 15px; background: #0a1510; border: 1px solid var(--line); overflow: hidden; }
+  #meterFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg,#3ecf7a,#c9e84a 70%,#ffb44a); }
+  #meterHook { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,90,80,.28); }
+  #meterZero { position: absolute; top: -2px; bottom: -2px; width: 3px; background: #fff; box-shadow: 0 0 8px #fff; }
+  #meterPerfect { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,.22); }
+  #meterHint { position: absolute; top: -1px; bottom: -1px; width: 3px; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  #meterCursor { position: absolute; top: 0; bottom: 0; width: 4px; background: #fff; box-shadow: 0 0 10px #fff; display: none; }
+  #meterPower { position: absolute; top: 0; bottom: 0; width: 3px; background: #7dd3ff; display: none; }
+  #aimRow { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  #aimRow .lab { font-size: 11px; letter-spacing: 1px; color: var(--dim); min-width: 62px; text-align: center; line-height: 1.15; }
+  #aimTrack { position: relative; flex: 1; height: 14px; border-radius: 7px; background: #0a1510; border: 1px solid var(--line); overflow: hidden;
+    background-image: linear-gradient(90deg, rgba(255,90,80,.25), transparent 30%, transparent 70%, rgba(255,90,80,.25)); }
+  #aimMid { position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #5fe08a; box-shadow: 0 0 6px #5fe08a; }
+  #aimCursor { position: absolute; top: 0; bottom: 0; width: 4px; background: #fff; box-shadow: 0 0 8px #fff; display: none; }
+  #meterMsg { text-align: center; margin-top: 6px; height: 18px; color: var(--accent); font-weight: 700; }
+  #keys { text-align: center; color: var(--dim); font-size: 12px; margin-top: 2px; }
+  kbd { background: rgba(255,255,255,.12); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 11px monospace; color: var(--ink); }
+
+  /* compact mode: hides only the controls legend under the bars */
+  .compact #keys { display: none !important; }
+  /* ================= mobile (portrait) layout ================= */
+  #btnMenuM, #mBtns, #clubChip { display: none; }
+  /* PC: the right-hand panel keeps only Reset view, Main menu and the legend toggle (the keys H, G, M, Q/E, F/R, Esc still work) */
+  body:not(.mobile) #camctl .camrow, body:not(.mobile) #camctl [data-cam="caddie"], body:not(.mobile) #camctl [data-cam="green"],
+  body:not(.mobile) #camctl [data-cam="markers"] { display: none; }
+  .mob { display: none; } .mobile .mob { display: inline; } .mobile .desk { display: none; }
+  html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  .mobile body, body.mobile { touch-action: manipulation; }
+  body.mobile #hud button, body.mobile .btn { touch-action: manipulation; }
+  .mobile #info { left: 6px; top: 6px; right: 108px; width: auto; min-width: 0; padding: 6px 8px; font-size: 11px; }
+  .mobile #info .big { font-size: 14px; }
+  .mobile #info .row { display: inline-flex; gap: 4px; margin-right: 10px; font-size: 11px; }
+  .mobile #info .sub { font-size: 10px; margin-top: 2px; }
+  .mobile #wind { top: 6px; right: 6px; width: 94px; padding: 4px; }
+  .mobile #wind canvas { width: 50px; height: 50px; margin-bottom: 1px; }
+  .mobile #wind .t { font-size: 12px; } .mobile #wind .s { font-size: 9.5px; line-height: 1.1; }
+  .mobile #btnMenuM { display: block; position: absolute; top: 116px; right: 6px; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); font-size: 22px; z-index: 6; }
+  .mobile #mini { top: auto; right: auto; left: 6px; bottom: 276px; padding: 3px; }
+  .mobile #mini canvas { width: 150px; height: 80px; }
+  .mobile #mini .cap { display: none; }
+  .mobile #clubs { left: 0; right: 0; top: auto; bottom: 204px; width: auto; padding: 5px 6px; border-radius: 0; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .mobile #clubs::-webkit-scrollbar { display: none; }
+  .mobile #clubs h4 { display: none; }
+  .mobile #clubs { display: none; }
+  .mobile.clubs-open #clubs { display: block; }
+  .mobile.hideClub #clubChip, .mobile.hideClub #clubs { display: none !important; }
+  .mobile #clubChip { display: flex; flex-direction: column; align-items: center; justify-content: center; position: absolute; right: 6px; bottom: 276px; min-width: 96px; height: 52px; padding: 4px 12px;
+    border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; z-index: 6; }
+  .mobile #clubChip .n { font-size: 15px; font-weight: 700; } .mobile #clubChip .d { font-size: 12px; color: var(--accent); }
+  .mobile.clubs-open #clubChip { border-color: var(--accent); }
+  .mobile #clubList { display: flex; gap: 6px; width: max-content; }
+  .mobile .club { flex: 0 0 auto; flex-direction: column; align-items: center; min-width: 66px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 10px; }
+  .mobile .club .n { font-size: 12px; white-space: nowrap; } .mobile .club .d { font-size: 11px; }
+  .mobile #meterWrap { left: 6px; right: 6px; bottom: 100px; transform: none; width: auto; min-width: 0; padding: 6px 10px 6px; }
+  .mobile #meterTop { font-size: 11px; margin-bottom: 3px; height: 15px; gap: 8px; white-space: nowrap; overflow: hidden; }
+  .mobile #meterClub { flex: 0 0 auto; }
+  .mobile #meterHintTxt { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .mobile #meter { height: 26px; }
+  .mobile #meterMsg { margin-top: 3px; height: 16px; font-size: 12px; }
+  .mobile #keys { display: none !important; }
+  .mobile #mBtns { display: flex; position: absolute; left: 6px; right: 6px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 82px; gap: 8px; z-index: 6; }
+  .mobile #mBtns button { border: 0; border-radius: 18px; font: inherit; font-weight: 800; color: #fff; }
+  .mobile #btnAimL, .mobile #btnAimR { flex: 0 0 25%; background: #2b5a42; font-size: 30px; border: 1px solid var(--line); }
+  .mobile #btnAimL:active, .mobile #btnAimR:active { background: #3c7a59; }
+  .mobile #btnSwing { flex: 1; background: var(--accent); color: #1a1a00; font-size: 24px; letter-spacing: 1.5px; box-shadow: 0 4px 0 #b8952a; }
+  .mobile #btnSwing:active { transform: translateY(3px); box-shadow: 0 1px 0 #b8952a; }
+  .mobile #btnSwing[data-phase="sweep"] { background: #7dd3ff; box-shadow: 0 4px 0 #3a8fb8; color: #06202e; }
+  .mobile #btnSwing[data-phase="rise"] { background: #5fe08a; box-shadow: 0 4px 0 #2f9c58; color: #052a14; }
+  .mobile #btnSwing.dis { background: #3a4a42; color: #8fa297; box-shadow: none; }
+  /* options sheet: the camera / view / caddie buttons */
+  .mobile #camctl { display: none; left: 8px; right: 8px; top: auto; bottom: 276px; width: auto; padding: 10px; z-index: 7; }
+  .mobile.sheet #camctl { display: block; }
+  .mobile #camctl .btn { padding: 10px; font-size: 14px; }
+  .mobile #camctl .camrow button { width: 54px; height: 38px; }
+  .mobile #toast { top: 190px; font-size: 18px; padding: 6px 16px; }
+  .mobile .overlay { padding: 10px; }
+  .mobile .card { padding: 16px 16px; }
+  .mobile .card h1 { font-size: 26px; }
+  .mobile .stats { gap: 6px; } .mobile .stat .v { font-size: 20px; }
+  .mobile .seg button { padding: 9px 12px; }
+  .mobile .btn { padding: 13px 22px; font-size: 16px; }
+  #toast { top: 34%; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: 800; padding: 8px 22px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+
+  .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(12,40,26,.72), rgba(6,16,11,.92)); overflow: auto; padding: 18px; }
+  .card { background: #10261b; border: 1px solid var(--line); border-radius: 16px; padding: 26px 30px; width: min(760px, 100%); max-height: 100%; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .card h1 { margin: 0 0 2px; font-size: 34px; letter-spacing: .5px; }
+  .card h2 { margin: 0 0 10px; font-size: 22px; }
+  .card p.lead { margin: 0 0 18px; color: var(--dim); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin: 4px 0 12px; }
+  .seg button { background: transparent; color: var(--ink); border: 0; padding: 7px 16px; cursor: pointer; font: inherit; }
+  .seg button.on { background: var(--accent); color: #1a1a00; font-weight: 700; }
+  .label { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); }
+  .btn { background: var(--accent); color: #1a1a00; border: 0; border-radius: 10px; padding: 11px 22px; font: inherit; font-weight: 800; cursor: pointer; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 12px; }
+  .stat { background: rgba(255,255,255,.05); border-radius: 10px; padding: 8px 10px; }
+  .stat .v { font-size: 24px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 11px; color: var(--dim); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; }
+  td.l, th.l { text-align: left; }
+  .under { color: var(--good); font-weight: 700; } .over { color: var(--bad); }
+  .hist { max-height: 150px; overflow: auto; font-size: 13px; }
+  .toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 4px 0 14px; }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  @media (max-width: 900px) {
+    #clubs { top: 176px; width: 150px; padding: 4px; }
+    .club { padding: 1px 6px; font-size: 12px; }
+    #info { min-width: 0; width: 200px; padding: 8px 10px; font-size: 12px; }
+    #info .big { font-size: 16px; }
+    #camctl { top: 118px; width: 130px; padding: 5px 6px; } #wind { width: 130px; padding: 6px; } #wind canvas { width: 64px; height: 64px; } #wind .t { font-size: 13px; } #wind .s { font-size: 11px; }
+    #mini { right: 8px; bottom: 150px; padding: 4px; } #mini canvas { width: 220px; height: 117px; } #mini .cap { font-size: 11px; }
+    #meterWrap { min-width: 0; width: calc(100vw - 16px); bottom: 8px; padding: 6px 10px 8px; }
+    #keys { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud" class="hidden">
+  <button id="btnMenuM" aria-label="Options">☰</button>
+  <button id="clubChip" aria-label="Change club"></button>
+  <div id="mBtns"><button id="btnAimL" aria-label="Aim left">◀</button><button id="btnSwing">SWING</button><button id="btnAimR" aria-label="Aim right">▶</button></div>
+  <div id="info" class="panel"></div>
+  <div id="wind" class="panel"><canvas id="windCv" width="184" height="184"></canvas><div class="t" id="windT"></div><div class="s" id="windS"></div></div>
+  <div id="camctl" class="panel"><div class="label">Camera</div>
+    <div class="camrow"><span>Height</span><button data-cam="down" title="Lower (Q / wheel down)">▼</button><button data-cam="up" title="Raise (E / wheel up)">▲</button></div>
+    <div class="camrow"><span>Tilt</span><button data-cam="td" title="Tilt down (F / Shift+wheel)">▼</button><button data-cam="tu" title="Tilt up (R / Shift+wheel)">▲</button></div>
+    <button class="btn ghost small" data-cam="caddie" style="width:100%;margin-top:6px">Caddie: On (H)</button>
+    <button class="btn ghost small" data-cam="green" style="width:100%;margin-top:6px" title="Cut to the green to read the slopes (G)">View green (G)</button>
+    <button class="btn ghost small" data-cam="markers" style="width:100%;margin-top:4px" title="Show or hide the fairway distance markers (M)">Distance markers: On (M)</button>
+    <button class="btn ghost small" data-cam="reset" style="width:100%;margin-top:4px" title="Reset (C)">Reset view</button>
+    <button class="btn ghost small" data-cam="menu" style="width:100%;margin-top:4px" title="Main menu (Esc)">Main menu</button>
+    <button id="btnControls" class="btn ghost small" style="width:100%;margin-top:4px" title="Hide/show the controls legend (Tab)">Hide controls legend</button></div>
+  <div id="clubs" class="panel"><h4>Clubs <span style="text-transform:none;letter-spacing:0">(↑ ↓)</span></h4><div id="clubList"></div></div>
+  <div id="mini" class="panel"><canvas id="miniCv" width="640" height="340"></canvas><div class="cap"><span id="miniL"></span><span>Aim <kbd>←</kbd><kbd>→</kbd> <b id="aimTxt"></b></span></div></div>
+  <div id="meterWrap" class="panel">
+    <div id="meterTop"><span id="meterClub"></span><span id="meterHintTxt"></span></div>
+    <div id="aimRow"><span class="lab">AIM</span><div id="aimTrack"><div id="aimMid"></div><div id="aimCursor"></div></div><span class="lab" id="aimTxt2">±7.5°</span></div>
+    <div id="meter"><div id="meterHook"></div><div id="meterFill"></div><div id="meterPerfect"></div><div id="meterZero"></div><div id="meterHint"></div><div id="meterPower"></div><div id="meterCursor"></div></div>
+    <div id="meterMsg"></div>
+    <div id="keys">Set angle <kbd>←</kbd><kbd>→</kbd> · Click/<kbd>Space</kbd>: lock <b>aim</b> → lock <b>power</b> (full bar = 100%) &nbsp; <kbd>H</kbd> caddie &nbsp; <kbd>V</kbd> view &nbsp; <kbd>Q</kbd><kbd>E</kbd> height &nbsp; <kbd>R</kbd><kbd>F</kbd> tilt &nbsp; <kbd>G</kbd> green &nbsp; <kbd>M</kbd> markers &nbsp; <kbd>Tab</kbd> hide legend &nbsp; <kbd>Esc</kbd> menu</div>
+  </div>
+  <div id="toast" class="panel"></div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="card">
+    <h1>⛳ Fairway Fever</h1>
+    <p class="lead">Read the wind, judge the elevation, pick your club, and time your swing.</p>
+    <div class="cols">
+      <div>
+        <div class="label">Round length</div>
+        <div class="seg" id="segHoles"><button data-v="3">3 holes</button><button data-v="9" class="on">9 holes</button><button data-v="18">18 holes</button></div>
+        <label class="toggle"><input type="checkbox" id="chkCaddie" checked> Caddie assist (shows suggested power &amp; predicted shot)</label>
+        <div class="label">How to play</div>
+        <p style="margin:6px 0 0;color:var(--dim)">
+          <span class="desk"><b style="color:var(--ink)">Pick a club</b> with ↑/↓ or click it. Distances shown are for your current lie, wind and elevation.<br>
+          <b style="color:var(--ink)">Aim</b> with ←/→ (hold, or Shift, for bigger steps; up to 90° either way) to fight crosswind or cut a corner.<br>
+          <b style="color:var(--ink)">Swing</b> — 3 clicks (Space or mouse): 1st starts the <b>aim</b> indicator swinging up to ±7.5° around the angle you set, 2nd locks it and starts the <b>power</b> bar, 3rd locks power (full bar = 100%).<br>
+          </span><span class="mob"><b style="color:var(--ink)">Pick a club</b> from the scrolling bar above the bars (distances include wind, slope and lie).<br><b style="color:var(--ink)">Aim</b> with the ◀ ▶ buttons (hold to move faster, up to 90°).<br><b style="color:var(--ink)">Swing</b> with the big yellow button, 3 taps: <b>SWING</b> starts the aim indicator swinging up to ±7.5° around your angle, <b>LOCK AIM</b> locks it and starts the power bar, <b>LOCK POWER</b> takes the shot (full bar = 100%).<br>The ☰ button has the caddie, green view, distance markers and camera.<br></span>Rough and bunkers rob your distance (rough won't bounce, fairway will); water &amp; out-of-bounds cost a stroke. Aim off-centre and you risk a chunk (right of centre) or a top (left) - safe inside 1°. The ground rolls: slopes change how far it plays, kick bounces sideways, and sloped lies change your launch (uphill = higher, ball above feet = pulls left).
+        </p>
+      </div>
+      <div id="hcapBox"></div>
+    </div>
+    <div class="actions"><button class="btn" id="btnStart">Tee off</button></div>
+  </div>
+</div>
+
+<div id="result" class="overlay hidden"><div class="card" id="resultCard"></div></div>
+
+<script src="physics.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
