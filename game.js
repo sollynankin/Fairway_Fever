@@ -881,6 +881,10 @@
   function nearCup() {
     const h = S.hole, f = S.fl;
     if (S.closeup) return true;   // once cut in, stay in (no flicking in and out while it bounces)
+    // only cut in when the roll is going to finish in the cup or inside the gimme: every other shot keeps the following camera
+    // until the ball has completely stopped, and only then moves to the putting view (or back to the normal one)
+    const e = f.res.end;
+    if (!(e.type === 'hole' || (e.type === 'rest' && h.surface(e.x, e.z) === 'green' && Math.hypot(e.x - h.pinX, e.z - h.pinZ) < 1.0))) return false;
     if (f.lastAir === undefined) {   // index of the last sample where the ball is still in the air / bouncing; the cut-in waits for it to settle into its roll
       f.lastAir = 0;
       f.res.path.forEach((q, k) => { if (q[1] > h.h(q[0], q[2]) + 0.25) f.lastAir = k; });
@@ -1134,7 +1138,7 @@
     if (S.lie === 'sand' && !putting) {
       const bk = inBunker();
       if (bk) {
-        const P0 = bk.pts, n = P0.length, LIP = P.LIP;
+        const P0 = bk.pts, n = P0.length, LIP = bk.lip;
         let area = 0; for (let i = 0; i < n; i++) { const A = P0[i], B = P0[(i + 1) % n]; area += A.x * B.z - B.x * A.z; }
         const sgn = area >= 0 ? 1 : -1;
         for (let i = 0; i < n; i++) {

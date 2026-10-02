@@ -7,7 +7,6 @@
   const KL = 0.0030;        // lift coefficient
   const MPH = 0.488;        // mph -> yd/s
   const WIND_SCALE = 0.6;   // tone the wind down a little for playability
-  const LIP = 2;            // bunker wall height (yd) a ball must get over to leave the sand
   const OB = 55;            // out of bounds beyond |z| > OB
   const GREEN_R = 24;  // greens are ~1.7x bigger than before
   // speed multipliers giving a chunk -75% and a top -85% of the shot's distance (calibrated on a flat fairway)
@@ -40,7 +39,7 @@
     fairway: { e: 0.42, ret: 0.64, f: 2.2, K: 3.0, tau: 1.6 },
     rough:   { e: 0,    ret: 0.15, f: 8.0, K: 1.0, tau: 1.0 },   // ball plugs: no bounce
     sand:    { e: 0,    ret: 0.06, f: 24,  K: 0,   tau: 1 },
-    green:   { e: 0.30, ret: 0.50, f: 0.9, K: 9.0, tau: 1.8 },
+    green:   { e: 0.34, ret: 0.62, f: 0.8, K: 4.5, tau: 1.8 },
   };
 
   const WEDGES = { PW: 1, GW: 1, SW: 1, LW: 1 };
@@ -231,7 +230,7 @@
       for (const q of pts) { cx += q.x; cz += q.z; x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
       cx /= pts.length; cz /= pts.length;
       let r = 0; for (const q of pts) r = Math.max(r, Math.hypot(q.x - cx, q.z - cz));
-      return { pts, kind, cx, cz, r, contains: (x, z) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && polyContains(pts, x, z) };
+      return { pts, kind, cx, cz, r, lip: R(1.0, 1.67), contains: (x, z) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && polyContains(pts, x, z) };
     };
     // a lumpy blob: elliptical base (a x b, rotated) with a few harmonics, optionally with a dent (kidney)
     const blob = (cx, cz, aa, bb, rot, o) => {
@@ -249,10 +248,13 @@
       return pts;
     };
     // a crescent that wraps around the green edge (thickness tapers to a point at both ends)
+    // a fat, rounded crescent hugging the green: thickest in the middle with blunt rounded ends (no pointed tips)
     const crescent = (centerA, span, gap, thick) => {
-      const outer = [], inner = [];
-      for (let i = 0; i <= 16; i++) {
-        const u = i / 16, t = centerA - span / 2 + span * u, rIn = shapeR(t) + gap, rOut = rIn + thick * Math.pow(Math.sin(Math.PI * u), 0.7) + 0.01;
+      const outer = [], inner = [], N = 28;
+      for (let i = 0; i <= N; i++) {
+        const u = i / N, t = centerA - span / 2 + span * u, rIn = shapeR(t) + gap;
+        const prof = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(2 * u - 1), 2.4)), 0.5);      // rounded end caps, full body in the middle
+        const rOut = rIn + thick * prof + 0.01;
         outer.push({ x: gcx + Math.cos(t) * rOut, z: gcz + Math.sin(t) * rOut });
         inner.push({ x: gcx + Math.cos(t) * rIn, z: gcz + Math.sin(t) * rIn });
       }
@@ -299,7 +301,7 @@
       const side = i % 2 === 0 ? -1 : 1, crescentKind = rnd() < 0.5;
       place(() => {
         const al = frontA + side * R(0.35, 1.7) + (i === 2 ? Math.PI * side * R(0.5, 0.9) : 0);
-        if (crescentKind) return crescent(al, R(1.3, 2.3), R(3.8, 5.5), R(7, 12));
+        if (crescentKind) return crescent(al, R(1.1, 1.9), R(3.8, 5.5), R(10, 15));
         const bb = R(4.5, 7.5), aa = R(7, 12), gap = R(3.8, 6.5), d = shapeR(al) + gap + bb;
         return blob(gcx + Math.cos(al) * d, gcz + Math.sin(al) * d, aa, bb, al + Math.PI / 2 + R(-0.4, 0.4), rnd() < 0.4 ? { dent: 0.35 } : {});
       }, false, crescentKind ? 'crescent' : 'pot');
@@ -425,6 +427,11 @@
     let vx, vy, vz;
     let air = !club.putter;
     let rollAge = 0, fromAir = false, bounces = 0;
+    // Backspin decides how much a ball checks up on landing. It comes from the club (wedges spin most, woods least) AND the lie:
+    // off the fairway or tee it is full, from the rough very little, from sand almost none, so those shots run on and can roll off the green.
+    const lieSpin = { tee: 1, fairway: 1, green: 1, rough: 0.3, sand: 0.1 }[o.lie] ?? 1;
+    const spinEff = club.spin * lieSpin;
+    let skid = 1;
     const path = [[x, y, z]];
     let carry = null, apex = y, type = 'rest';
     const treeInfo = { leaf: false, trunk: false }, uMap = new Map(), rng = o.rng || Math.random;
@@ -489,7 +496,7 @@
         }
         if (!lipDone) {
           if (startSand.contains(x, z)) lastIn = { x, z };
-          else if (y - hole.h(x, z) < LIP) { x = lastIn.x; z = lastIn.z; vx *= -0.15; vz *= -0.15; vy = Math.min(vy, 0) * 0.3; lipHit = true; }
+          else if (y - hole.h(x, z) < startSand.lip) { x = lastIn.x; z = lastIn.z; vx *= -0.15; vz *= -0.15; vy = Math.min(vy, 0) * 0.3; lipHit = true; }
           else lipDone = true;
         }
         const gy = hole.h(x, z);
@@ -501,7 +508,8 @@
           const gr = hole.grad(x, z), nl = Math.sqrt(1 + gr.gx * gr.gx + gr.gz * gr.gz), nx = -gr.gx / nl, ny = 1 / nl, nz = -gr.gz / nl;
           const vn = vx * nx + vy * ny + vz * nz;
           const P = SURF[surf];
-          let ret = P.ret * (bounces === 0 ? (1 - club.spin) : 1);
+          if (bounces === 0) skid = surf === 'green' ? 0.4 + 0.6 * clamp(spinEff / 0.34, 0, 1.6) : 0.35 + 0.65 * lieSpin;   // how hard it checks up after landing
+          let ret = P.ret * (bounces === 0 ? (1 - spinEff) : 1);
           if (vn < -4) {
             // reflect about the true surface normal: side slopes kick the ball left/right
             const vtx = vx - vn * nx, vty = vy - vn * ny, vtz = vz - vn * nz;
@@ -521,7 +529,7 @@
         const ax = -0.7 * G * gr.gx / gq, az = -0.7 * G * gr.gz / gq;   // rolls downhill in any direction
         const spd = Math.hypot(sx, sz);
         let f = P.f;
-        if (fromAir) f *= 1 + P.K * Math.exp(-rollAge / P.tau);
+        if (fromAir) f *= 1 + P.K * skid * Math.exp(-rollAge / P.tau);
         rollAge += dt;
         if (spd < 0.06 && Math.hypot(ax, az) <= P.f * 1.05) { sx = sz = 0; break; }
         sx += ax * dt; sz += az * dt;
@@ -608,7 +616,7 @@
     return { type: angDeg > 0 ? 'chunk' : 'top', sev: 1 };
   }
 
-  const api = { G, MPH, OB, LIP, CUP_R, CLUBS, SURF, makeHole, simulate, solvePower, solvePowerAlong, MISHIT_K, mishitChance, rollMishit, GREEN_R, strike };
+  const api = { G, MPH, OB, CUP_R, CLUBS, SURF, makeHole, simulate, solvePower, solvePowerAlong, MISHIT_K, mishitChance, rollMishit, GREEN_R, strike };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GolfPhysics = api;
 })(typeof window !== 'undefined' ? window : globalThis);
