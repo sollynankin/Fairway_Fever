@@ -7,28 +7,29 @@
   const KL = 0.0030;        // lift coefficient
   const MPH = 0.488;        // mph -> yd/s
   const WIND_SCALE = 0.6;   // tone the wind down a little for playability
+  const LIP = 2;            // bunker wall height (yd) a ball must get over to leave the sand
   const OB = 55;            // out of bounds beyond |z| > OB
   const GREEN_R = 24;  // greens are ~1.7x bigger than before
   // speed multipliers giving a chunk -75% and a top -85% of the shot's distance (calibrated on a flat fairway)
-  const MISHIT_K = { chunk: 0.443, top: 0.56, chunkBy: {DR:0.426,'3W':0.442,'5W':0.441,'4I':0.442,'5I':0.44,'6I':0.44,'7I':0.439,'8I':0.441,'9I':0.443,PW:0.443,GW:0.448,SW:0.455,LW:0.471}, topBy: {DR:0.429,'3W':0.461,'5W':0.493,'4I':0.518,'5I':0.539,'6I':0.563,'7I':0.579,'8I':0.599,'9I':0.612,PW:0.615,GW:0.625,SW:0.624,LW:0.622} };
+  const MISHIT_K = { chunk: 0.443, top: 0.56, chunkBy: {DR:0.426,'3W':0.437,'5W':0.441,'4I':0.44,'5I':0.441,'6I':0.445,'7I':0.446,'8I':0.444,'9I':0.443,PW:0.444,GW:0.447,SW:0.455,LW:0.468}, topBy: {DR:0.429,'3W':0.46,'5W':0.492,'4I':0.517,'5I':0.542,'6I':0.566,'7I':0.587,'8I':0.605,'9I':0.616,PW:0.615,GW:0.615,SW:0.623,LW:0.633} };
   const CUP_R = 0.2;   // forgiving cup
 
   // v = full-power ball speed (yd/s), ang = launch angle (deg), spin = fraction of ground speed lost on first bounce,
   // acc = accuracy sensitivity, rise = seconds for the power bar to fill
   const CLUBS = [
-    { id: 'DR', name: 'Driver',        v: 85.2, ang: 10.5, spin: 0.10, acc: 1.10, rise: 1.5 },
-    { id: '3W', name: '3 Wood',        v: 72.6, ang: 12,   spin: 0.14, acc: 1.05, rise: 1.5 },
-    { id: '5W', name: '5 Wood',        v: 65.86,   ang: 14.3,   spin: 0.18, acc: 1.00, rise: 1.5 },
-    { id: '4I', name: '4 Iron',        v: 61.4, ang: 15.5, spin: 0.22, acc: 0.95, rise: 1.5 },
+    { id: 'DR', name: 'Driver',        v: 85.25, ang: 11.97, spin: 0.10, acc: 1.10, rise: 1.5 },
+    { id: '3W', name: '3 Wood',        v: 72.65, ang: 12.62,   spin: 0.14, acc: 1.05, rise: 1.5 },
+    { id: '5W', name: '5 Wood',        v: 65.81,   ang: 14.21,   spin: 0.18, acc: 1.00, rise: 1.5 },
+    { id: '4I', name: '4 Iron',        v: 61.4, ang: 15.88, spin: 0.22, acc: 0.95, rise: 1.5 },
     { id: '5I', name: '5 Iron',        v: 57.3,   ang: 17.5, spin: 0.26, acc: 0.92, rise: 1.5 },
-    { id: '6I', name: '6 Iron',        v: 53.5, ang: 19.5, spin: 0.30, acc: 0.90, rise: 1.5 },
-    { id: '7I', name: '7 Iron',        v: 50.8,   ang: 21.5, spin: 0.34, acc: 0.88, rise: 1.5 },
-    { id: '8I', name: '8 Iron',        v: 47.7, ang: 24,   spin: 0.38, acc: 0.85, rise: 1.5 },
-    { id: '9I', name: '9 Iron',        v: 44.1,   ang: 27,   spin: 0.42, acc: 0.82, rise: 1.5 },
-    { id: 'PW', name: 'Pitching Wedge',v: 41.4,   ang: 31,   spin: 0.46, acc: 0.80, rise: 1.5 },
-    { id: 'GW', name: 'Gap Wedge',     v: 38.2,   ang: 34,   spin: 0.50, acc: 0.78, rise: 1.5 },
-    { id: 'SW', name: 'Sand Wedge',    v: 34.9,   ang: 38,   spin: 0.54, acc: 0.76, rise: 1.5 },
-    { id: 'LW', name: 'Lob Wedge',     v: 29.5,   ang: 43,   spin: 0.58, acc: 0.74, rise: 1.5 },
+    { id: '6I', name: '6 Iron',        v: 53.5, ang: 18.45, spin: 0.30, acc: 0.90, rise: 1.5 },
+    { id: '7I', name: '7 Iron',        v: 50.75,   ang: 19.58, spin: 0.34, acc: 0.88, rise: 1.5 },
+    { id: '8I', name: '8 Iron',        v: 46.7, ang: 24,   spin: 0.38, acc: 0.85, rise: 1.5 },
+    { id: '9I', name: '9 Iron',        v: 44.05,   ang: 26.61,   spin: 0.42, acc: 0.82, rise: 1.5 },
+    { id: 'PW', name: 'Pitching Wedge',v: 41,   ang: 31.63,   spin: 0.46, acc: 0.80, rise: 1.5 },
+    { id: 'GW', name: 'Gap Wedge',     v: 38.45,   ang: 35.3,   spin: 0.50, acc: 0.78, rise: 1.5 },
+    { id: 'SW', name: 'Sand Wedge',    v: 34.9,   ang: 37.8,   spin: 0.54, acc: 0.76, rise: 1.5 },
+    { id: 'LW', name: 'Lob Wedge',     v: 30,   ang: 41.47,   spin: 0.58, acc: 0.74, rise: 1.5 },
     { id: 'PT', name: 'Putter',        v: 9.6,  ang: 0,    spin: 0,    acc: 0.3, rise: 2.4, putter: true },
   ];
 
@@ -74,7 +75,7 @@
     // ---- layout: tee at (0,0) playing +x; at most ONE bend of 45..135 degrees (left or right) at 'corner'
     const bendy = par > 3 && rnd() < 0.5;      // half of the par 4s and 5s bend (par 3s stay straight)
     const sign = rnd() < 0.5 ? -1 : 1;                       // + = turns right (+z), - = turns left
-    const deflect = bendy ? R(45, 135) : 0;                   // degrees the hole turns at the corner
+    const deflect = bendy ? (rnd() < 0.75 ? R(45, 90) : R(90, 135)) : 0;   // mostly gentle-to-moderate bends; sharp ones (90-135) are the exception                   // degrees the hole turns at the corner
     const th = sign * deflect * Math.PI / 180;
     const L1 = bendy ? Math.round(total * R(0.5, 0.62)) : total, L2 = total - L1;
     const u2 = { x: Math.cos(th), z: Math.sin(th) };
@@ -298,7 +299,7 @@
       const side = i % 2 === 0 ? -1 : 1, crescentKind = rnd() < 0.5;
       place(() => {
         const al = frontA + side * R(0.35, 1.7) + (i === 2 ? Math.PI * side * R(0.5, 0.9) : 0);
-        if (crescentKind) return crescent(al, R(0.8, 1.6), R(3.8, 5.5), R(4.5, 8.5));
+        if (crescentKind) return crescent(al, R(1.3, 2.3), R(3.8, 5.5), R(7, 12));
         const bb = R(4.5, 7.5), aa = R(7, 12), gap = R(3.8, 6.5), d = shapeR(al) + gap + bb;
         return blob(gcx + Math.cos(al) * d, gcz + Math.sin(al) * d, aa, bb, al + Math.PI / 2 + R(-0.4, 0.4), rnd() < 0.4 ? { dent: 0.35 } : {});
       }, false, crescentKind ? 'crescent' : 'pot');
@@ -401,6 +402,12 @@
    * Returns {path:[[x,y,z]...], end:{x,z,type}, carry, apex}
    */
   function simulate(hole, s, o) {
+    // 'free': the flight as if there were no trees or mountains (used for the blue tracer, which shows the pure carry)
+    if (o.free && hole.mountains && hole.mountains.length) {
+      const saved = hole.mountains.splice(0);
+      try { return simulate(hole, s, Object.assign({}, o, { free: false, noTrees: true })); } finally { hole.mountains.push(...saved); }
+    }
+    if (o.free) o = Object.assign({}, o, { free: false, noTrees: true });
     const club = o.club, dt = o.dt || 1 / 120;
     const st = strike(club, o.lie);
     let dirA = o.az + (o.err || 0);
@@ -437,6 +444,10 @@
       sx = speed * Math.cos(dirA); sz = speed * Math.sin(dirA);
     }
     const wx = hole.wind.x, wz = hole.wind.z;
+    // a deep bunker: its walls rise LIP yards above the sand, so a ball that leaves the bunker below that height is stopped by the wall and
+    // drops back in. Only the bunker the ball starts in counts, and once the ball has cleared the lip it is out for good.
+    const startSand = o.lie === 'sand' ? (hole.sands || []).find(b => b.contains(s.x, s.z)) : null;
+    let lipDone = !startSand, lastIn = { x: s.x, z: s.z }, lipHit = false;
     let t = 0, k = 0;
     const maxT = 70;
     while (t < maxT) {
@@ -454,7 +465,7 @@
         if (y > apex) apex = y;
         {
           const key = Math.floor(x / 16) + ',' + Math.floor(z / 16);
-          if (key !== nearKey) { nearKey = key; near = hole.treesNear(x, z); }
+          if (key !== nearKey) { nearKey = key; near = o.noTrees ? [] : hole.treesNear(x, z); }
           for (const T of near) {
             const dx = x - T.x, dz = z - T.z, dxz = Math.hypot(dx, dz);
             if (dxz > T.rx + 0.4 || y > T.gy + T.H) continue;
@@ -475,6 +486,11 @@
               }
             }
           }
+        }
+        if (!lipDone) {
+          if (startSand.contains(x, z)) lastIn = { x, z };
+          else if (y - hole.h(x, z) < LIP) { x = lastIn.x; z = lastIn.z; vx *= -0.15; vz *= -0.15; vy = Math.min(vy, 0) * 0.3; lipHit = true; }
+          else lipDone = true;
         }
         const gy = hole.h(x, z);
         if (y <= gy && vy < 0) {
@@ -515,9 +531,13 @@
           sx *= ns / spd2; sz *= ns / spd2;
         }
         x += sx * dt; z += sz * dt; y = hole.h(x, z);
+        if (!lipDone) {
+          if (startSand.contains(x, z)) lastIn = { x, z };
+          else { x = lastIn.x; z = lastIn.z; sx *= -0.12; sz *= -0.12; lipHit = true; }   // rolled into the wall
+        }
         {
           const key = Math.floor(x / 16) + ',' + Math.floor(z / 16);
-          if (key !== nearKey) { nearKey = key; near = hole.treesNear(x, z); }
+          if (key !== nearKey) { nearKey = key; near = o.noTrees ? [] : hole.treesNear(x, z); }
           for (const T of near) {
             const dx = x - T.x, dz = z - T.z, dxz = Math.hypot(dx, dz);
             if (dxz < T.rt + 0.06) {
@@ -536,7 +556,7 @@
     if (carry === null) carry = Math.hypot(x - s.x, z - s.z);
     if (type === 'rest' && hole.pathDist(x, z).d > OB) type = 'ob';
     path.push([x, y, z]);
-    return { path, tree: treeInfo, end: { x, z, y, type }, carry, apex: apex - hole.h(s.x, s.z), total: Math.hypot(x - s.x, z - s.z), time: t };
+    return { path, tree: treeInfo, lip: lipHit, end: { x, z, y, type }, carry, apex: apex - hole.h(s.x, s.z), total: Math.hypot(x - s.x, z - s.z), time: t };
   }
 
   /**
@@ -588,7 +608,7 @@
     return { type: angDeg > 0 ? 'chunk' : 'top', sev: 1 };
   }
 
-  const api = { G, MPH, OB, CUP_R, CLUBS, SURF, makeHole, simulate, solvePower, solvePowerAlong, MISHIT_K, mishitChance, rollMishit, GREEN_R, strike };
+  const api = { G, MPH, OB, LIP, CUP_R, CLUBS, SURF, makeHole, simulate, solvePower, solvePowerAlong, MISHIT_K, mishitChance, rollMishit, GREEN_R, strike };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GolfPhysics = api;
 })(typeof window !== 'undefined' ? window : globalThis);

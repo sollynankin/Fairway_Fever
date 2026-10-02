@@ -36,12 +36,13 @@
   #wind .s { color: var(--dim); font-size: 12px; }
 
   #clubs { left: 12px; top: 176px; width: 190px; padding: 6px; }
-  #clubs h4 { margin: 2px 6px 6px; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  #clubs h4 { display: flex; justify-content: space-between; align-items: baseline; padding-right: 2px; margin: 2px 6px 6px; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
   .club { display: flex; justify-content: space-between; align-items: center; padding: 3px 8px; border-radius: 6px; cursor: pointer;
     border: 1px solid transparent; }
   .club:hover { background: rgba(255,255,255,.07); }
   .club.sel { background: rgba(255,213,74,.16); border-color: var(--accent); }
   .club .n { font-weight: 600; }
+  .carryLab { color: var(--dim); font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 400; }
   .club .d { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 12px; }
   .club.sel .d { color: var(--accent); }
 
@@ -110,6 +111,7 @@
   .mobile.clubs-open #clubChip { border-color: var(--accent); }
   .mobile #clubList { display: flex; gap: 6px; width: max-content; }
   .mobile .club { flex: 0 0 auto; flex-direction: column; align-items: center; min-width: 66px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 10px; }
+  .mobile .club .d::after { content: ' carry'; }
   .mobile .club .n { font-size: 12px; white-space: nowrap; } .mobile .club .d { font-size: 11px; }
   .mobile #meterWrap { left: 6px; right: 6px; bottom: 100px; transform: none; width: auto; min-width: 0; padding: 6px 10px 6px; }
   .mobile #meterTop { font-size: 11px; margin-bottom: 3px; height: 15px; gap: 8px; white-space: nowrap; overflow: hidden; }
@@ -201,7 +203,7 @@
     <button class="btn ghost small" data-cam="reset" style="width:100%;margin-top:4px" title="Reset (C)">Reset view</button>
     <button class="btn ghost small" data-cam="menu" style="width:100%;margin-top:4px" title="Main menu (Esc)">Main menu</button>
     <button id="btnControls" class="btn ghost small" style="width:100%;margin-top:4px" title="Hide/show the controls legend (Tab)">Hide controls legend</button></div>
-  <div id="clubs" class="panel"><h4>Clubs <span style="text-transform:none;letter-spacing:0">(↑ ↓)</span></h4><div id="clubList"></div></div>
+  <div id="clubs" class="panel"><h4><span>Clubs <span style="text-transform:none;letter-spacing:0">(↑ ↓)</span></span><span class="carryLab">Carry</span></h4><div id="clubList"></div></div>
   <div id="mini" class="panel"><canvas id="miniCv" width="640" height="340"></canvas><div class="cap"><span id="miniL"></span><span>Aim <kbd>←</kbd><kbd>→</kbd> <b id="aimTxt"></b></span></div></div>
   <div id="meterWrap" class="panel">
     <div id="meterTop"><span id="meterClub"></span><span id="meterHintTxt"></span></div>

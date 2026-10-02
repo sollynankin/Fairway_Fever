@@ -178,14 +178,14 @@
     updateHud();
   }
 
-  // The distance shown beside each club: its full-power total on perfectly flat fairway in calm air, with no trees or hazards,
+  // The distance shown beside each club: its full-power CARRY (how far it flies before the first bounce) on perfectly flat fairway in calm air, with no trees or hazards,
   // so it never changes with the wind, slope or lie (those only affect the live numbers the caddie and the aim line use).
   const BALL_R = 0.11;   // drawn ball radius in yards (the cup is P.CUP_R = 0.2, so the ball is a bit over half its width)
   let maxDist = null;
   function clubMaxDist() {
     if (!maxDist) {
       const flat = { h: () => 0, grad: () => ({ gx: 0, gz: 0 }), surface: () => 'fairway', treesNear: () => [], wind: { mph: 0, dir: 0, x: 0, z: 0 }, pathDist: () => ({ d: 0, s: 0, lat: 0 }), pinX: 1e6, pinZ: 0 };
-      maxDist = CLUBS.map(c => c.putter ? 0 : P.simulate(flat, { x: 0, z: 0 }, { club: c, power: 1, az: 0, err: 0, lie: 'fairway' }).total);
+      maxDist = CLUBS.map(c => c.putter ? 0 : P.simulate(flat, { x: 0, z: 0 }, { club: c, power: 1, az: 0, err: 0, lie: 'fairway' }).carry);
     }
     return maxDist;
   }
@@ -412,6 +412,7 @@
     S.strokes++;
     const par = S.hole.par;
     S.fl = null; S.trail = [];
+    if (r.lip) toast('Caught the lip!', 1800);
     if (r.tree && r.tree.trunk) toast('Hit the trunk!', 1600); else if (r.tree && r.tree.leaf) toast('Through the leaves', 1600);
     if (end.type === 'hole') {
       S.ball = { x: S.hole.pinX, z: S.hole.pinZ }; sfx.cup();
@@ -833,6 +834,8 @@
     t.px += (t.px - t.lx) / hd * k; t.pz += (t.pz - t.lz) / hd * k;
   }
   const PUTT_TILT = 12;   // degrees off the line of the putt
+  // the bunker the ball is sitting in (if any)
+  const inBunker = () => (S.hole.sands || []).find(b => b.contains(S.ball.x, S.ball.z));
   function addressCam() {
     const t = addressCamBase(), h = S.hole;
     pullBack(t);
@@ -860,6 +863,10 @@
       const mx = (b.x + h.pinX) / 2, mz = (b.z + h.pinZ) / 2;
       const back = clamp(D * 0.22 + 2, 2.5, 12), ht = clamp(D * 0.75 + 8, 9, 55);   // auto-zoom: the camera drops in close on short putts and lifts to frame long ones
       return { px: mx - fx * back, pz: mz - fz * back, py: h.h(mx, mz) + ht, lx: mx, ly: h.h(mx, mz), lz: mz };
+    }
+    if (S.lie === 'sand' && inBunker()) {   // down in the bunker: camera low behind the ball, looking up at the wall you have to clear
+      const gy = h.h(b.x, b.z), px = b.x - fx * 8, pz = b.z - fz * 8, lx = b.x + fx * 30, lz = b.z + fz * 30;
+      return { px, py: gy + 0.8, pz, lx, ly: h.h(lx, lz) + 3, lz };
     }
     const back = clamp(11 + D * 0.06, 12, 32), ht = clamp(4.5 + D * 0.05, 5, 20);
     const px = b.x - fx * back, pz = b.z - fz * back;
@@ -942,7 +949,7 @@
     if (!wantPutt) S.puttDraw = false;
     else if (!S.puttDraw) { const tg = addressCam(); if (Math.hypot(c.px - tg.px, c.py - tg.py, c.pz - tg.pz) < 9 && Math.hypot(c.lx - tg.lx, c.lz - tg.lz) < 9) S.puttDraw = true; }
     const putting = wantPutt && !!S.puttDraw;
-    const key = [c.px, c.py, c.pz, c.lx, c.ly, c.lz].map(v => v.toFixed(2)).join() + putting + zf.toFixed(2) + PY + W + H + S.ball.x.toFixed(1) + S.hi + S.markers;
+    const key = [c.px, c.py, c.pz, c.lx, c.ly, c.lz].map(v => v.toFixed(2)).join() + putting + zf.toFixed(2) + PY + W + H + S.ball.x.toFixed(1) + S.hi + S.markers + (S.lie === 'sand' && inBunker() ? 'S' : '');
     // terrain mesh
     const vh = (x, z) => h.h(x, z);
     // --- smooth terrain: one flat-coloured base (rough) plus clean polygon overlays for each surface
@@ -1122,6 +1129,27 @@
 
     // sprites (trees, pin, ball) sorted far -> near
     const sprites = [];
+    // deep bunker: while you are in one, its far walls stand up out of the sand. They are depth-sorted with the other sprites so that
+    // trees, mountains and the flag behind the wall are hidden by it, and the ball and anything in front still show over it.
+    if (S.lie === 'sand' && !putting) {
+      const bk = inBunker();
+      if (bk) {
+        const P0 = bk.pts, n = P0.length, LIP = P.LIP;
+        let area = 0; for (let i = 0; i < n; i++) { const A = P0[i], B = P0[(i + 1) % n]; area += A.x * B.z - B.x * A.z; }
+        const sgn = area >= 0 ? 1 : -1;
+        for (let i = 0; i < n; i++) {
+          const A = P0[i], B = P0[(i + 1) % n], dx = B.x - A.x, dz = B.z - A.z, l = Math.hypot(dx, dz) || 1, nx = sgn * dz / l, nz = -sgn * dx / l;
+          const mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2;
+          if (-(nx * (c.px - mx) + nz * (c.pz - mz)) <= 0) continue;     // only the walls that face the camera
+          const ya = h.h(A.x, A.z) + 0.02, yb = h.h(B.x, B.z) + 0.02, d = Math.hypot(mx - c.px, mz - c.pz);
+          sprites.push({ d: d + 0.3, f: () => {
+            poly([[A.x, ya, A.z], [B.x, yb, B.z], [B.x, yb + LIP, B.z], [A.x, ya + LIP, A.z]], mixc(SURFC.sand, 0.66, 0));
+            poly([[A.x, ya + LIP * 0.8, A.z], [B.x, yb + LIP * 0.8, B.z], [B.x, yb + LIP, B.z], [A.x, ya + LIP, A.z]], mixc(SURFC.sand, 0.5, 0));   // shadowed upper face
+            poly([[A.x, ya + LIP, A.z], [B.x, yb + LIP, B.z], [B.x, yb + LIP + 0.3, B.z], [A.x, ya + LIP + 0.3, A.z]], mixc(SURFC.fairway, 0.9, 0));   // grass edge on top
+          } });
+        }
+      }
+    }
     // mountains: a polar mesh of quads, green at the foot -> rock -> pale summit, shaded by slope.
     // The geometry and colours never change, so they are built once per mountain and only projected each frame.
     for (const m of h.mountains) {
@@ -1331,7 +1359,7 @@
       // bar sweeps 0 -> 100 -> 0 until the player clicks
       S.sw.m += S.sw.dir * 100 / club.rise * dt;
       if (S.sw.m >= 100) { S.sw.m = 100; S.sw.dir = -1; } else if (S.sw.m <= 0) { S.sw.m = 0; S.sw.dir = 1; }
-      S.live = P.simulate(S.hole, S.ball, { club, power: Math.max(0.02, S.sw.m / 100), az: curAz(), err: S.sw.ang * D2R, lie: S.lie });
+      S.live = P.simulate(S.hole, S.ball, { club, power: Math.max(0.02, S.sw.m / 100), az: curAz(), err: S.sw.ang * D2R, lie: S.lie, free: true });   // the blue line is the pure flight: it ignores trees and mountains
     } else if (S.phase === 'flight' && S.fl) {
       const f = S.fl, path = f.res.path;
       const p = path[Math.min(Math.floor(f.i), path.length - 1)];
