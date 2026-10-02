@@ -306,7 +306,7 @@
     else if (k === 'markers') toggleMarkers();
     else if (k === 'caddie') toggleCaddie();
     else if (k === 'menu') { document.body.classList.remove('sheet'); openMenu(); }
-    else { S.camUp = 0; S.camTilt = 0; S.camYaw = 0; }
+    else { S.camUp = 0; S.camTilt = 0; S.camYaw = 0; refreshWind(); }
     b.blur();
   });
   // Hide/show the controls legend (key hints under the power bar); everything else stays
@@ -366,7 +366,7 @@
       case 'e': case 'E': adjustCam(3, 0); break;
       case 'r': case 'R': adjustCam(0, 2); break;
       case 'f': case 'F': adjustCam(0, -2); break;
-      case 'c': case 'C': S.camUp = 0; S.camTilt = 0; S.camYaw = 0; break;
+      case 'c': case 'C': S.camUp = 0; S.camTilt = 0; S.camYaw = 0; refreshWind(); break;
       case 'v': case 'V': S.view = S.view === 'behind' ? 'side' : 'behind'; break;
       case 'h': case 'H': toggleCaddie(); break;
     }
@@ -388,7 +388,7 @@
     // the worse the aim-swing angle, the likelier a chunk (angle > 0) or a top (angle < 0); inside 1 degree it can't happen
     const mishit = club.putter ? null : P.rollMishit(b);
     const res = P.simulate(S.hole, S.ball, { club, power, az: curAz(), err: errDeg * D2R, lie: S.lie, mishit, treeRandom: true });
-    S.camYaw = 0; S.closeup = false;
+    S.camYaw = 0; S.closeup = false; refreshWind();
     S.fl = { res, i: 0, club, power, b, az0: curAz() };
     S.prev = { x: S.ball.x, z: S.ball.z, lie: S.lie };
     S.phase = 'flight'; S.trail = []; S.live = null;
@@ -582,7 +582,7 @@
     const w = h.wind, rel = w.dir - curAz(), along = w.mph * Math.cos(rel), cross = w.mph * Math.sin(rel);
     $('windT').textContent = `${w.mph.toFixed(0)} mph`;
     $('windS').textContent = w.mph < 1.5 ? 'Calm' : `${along >= 0 ? 'Tail' : 'Head'} ${Math.abs(along).toFixed(0)} · Cross ${cross >= 0 ? 'L→R' : 'R→L'} ${Math.abs(cross).toFixed(0)}`;
-    drawWind(w, rel);
+    refreshWind();
 
     const club = CLUBS[S.clubIdx];
     $('meterClub').innerHTML = `<b>${club.name}</b> ${club.putter ? '' : `· full ≈ ${Math.round(S.clubDist[S.clubIdx])} yd`}`;
@@ -614,13 +614,23 @@
     } else { fill.style.width = '0'; cur.style.display = 'none'; pw.style.display = 'none'; }
   }
 
-  function drawWind(w, rel) {
+  // The compass points the way the wind blows on screen: its top is where the camera is looking, so it turns with your aim AND with
+  // finger-drag look-around. The AIM / BACK marks show where your aim line is within the view. (The Head / Cross text stays relative to your aim.)
+  function refreshWind() {
+    if (!S.hole) return;
+    const w = S.hole.wind, yaw = (S.camYaw + (onGreen() ? PUTT_TILT : 0)) * D2R;
+    drawWind(w, w.dir - (curAz() + yaw), -yaw);
+  }
+  function drawWind(w, rel, aimOff) {
     const c = wctx, s = 184, m = s / 2;
     c.clearRect(0, 0, s, s);
     c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 2;
     c.beginPath(); c.arc(m, m, 78, 0, 7); c.stroke();
     c.fillStyle = '#a9c2b0'; c.font = '600 16px sans-serif'; c.textAlign = 'center';
-    c.fillText('AIM', m, 24); c.fillText('BACK', m, s - 12);
+    const ax = Math.sin(aimOff || 0), ay = -Math.cos(aimOff || 0);
+    c.textBaseline = 'middle';
+    c.fillText('AIM', m + ax * 62, m + ay * 62); c.fillText('BACK', m - ax * 62, m - ay * 62);
+    c.textBaseline = 'alphabetic';
     const len = 12 + 60 * Math.min(1, w.mph / 20);
     c.save(); c.translate(m, m); c.rotate(rel);
     // dir 0 = toward pin = up on screen
@@ -816,15 +826,23 @@
     { d: 200, col: '#3f7dff', txt: '#fff' }, { d: 250, col: '#a35cff', txt: '#fff' }, { d: 300, col: '#ff9a2e', txt: '#222' }, { d: 350, col: '#2fc7b4', txt: '#222' },
   ];
 
+  // the blue tracer shows only the carry: the flight up to the first landing, with the ring where the ball first touches down
+  function carryOf(res) {
+    if (res.carryView) return res.carryView;
+    const p = res.path, h = S.hole; let k = p.length - 1;
+    for (let i = 3; i < p.length; i++) if (p[i][1] <= h.h(p[i][0], p[i][2]) + 0.08) { k = i; break; }
+    const q = p[k];
+    return (res.carryView = { path: p.slice(0, k + 1), end: { x: q[0], z: q[2], y: q[1], type: 'carry' } });
+  }
   // prediction arcs: gold = suggested power for the target, white = this club at full power, cyan = live bar power
   function arcs() {
     if (S.mode !== 'play' || (S.phase !== 'aim' && S.phase !== 'sweep' && S.phase !== 'rise')) return [];
     const out = [];
     // the blue tracer follows the power bar on every shot; the gold / white predictions are caddie-only
-    if (!S.caddie) { if (S.live) out.push({ res: S.live, col: '90,220,255', a: 1, ring: '#5adcff' }); return out; }
+    if (!S.caddie) { if (S.live) out.push({ res: carryOf(S.live), col: '90,220,255', a: 1, ring: '#5adcff' }); return out; }
     if (S.maxShot && !(S.hint != null && S.hint >= 0.995)) out.push({ res: S.maxShot, col: '255,255,255', a: 0.5, ring: '#fff' });
     if (S.ghost) out.push({ res: S.ghost, col: '255,213,74', a: 0.95, ring: '#ffd54a' });
-    if (S.live) out.push({ res: S.live, col: '90,220,255', a: 1, ring: '#5adcff' });
+    if (S.live) out.push({ res: carryOf(S.live), col: '90,220,255', a: 1, ring: '#5adcff' });
     return out;
   }
 
@@ -924,7 +942,8 @@
   function drawBehind() {
     const h = S.hole; if (!h) return;
     if (!onGreen() && !S.greenView) S.zoom = 1;
-    const c = cam3, zf = mobile && (onGreen() || S.greenView) && !S.closeup ? S.zoom : 1, foc = (mobile ? W * 1.15 : H * 0.85) * zf;
+    const c = cam3, zf = mobile && (onGreen() || S.greenView) && !S.closeup ? S.zoom : 1;
+    let foc = (mobile ? W * 1.15 : H * 0.85) * zf;
     let PY = mobile ? (H - 290) * 0.5 : H * 0.5;
     let Fx = c.lx - c.px, Fy = c.ly - c.py, Fz = c.lz - c.pz;
     const n = Math.hypot(Fx, Fy, Fz) || 1; Fx /= n; Fy /= n; Fz /= n;
@@ -935,16 +954,49 @@
       const d = dx * Fx + dy * Fy + dz * Fz; if (d < 0.4) return null;
       return [W / 2 + foc * (dx * Rx + dz * Rz) / d, PY - foc * (dx * Ux + dy * Uy + dz * Uz) / d, d];
     };
-    // phone putting: slide the picture so the whole putt (ball to cup) sits between the info panel above and the meter below, instead of the cup hiding under the info
-    if (mobile && onGreen() && !S.closeup && S.puttDraw) {
-      const pb = proj(S.ball.x, h.h(S.ball.x, S.ball.z) + 0.1, S.ball.z), pp = proj(h.pinX, h.h(h.pinX, h.pinZ), h.pinZ);
-      if (pb && pp) {
-        const top = $('info').getBoundingClientRect().bottom + 26, bot = $('meterWrap').getBoundingClientRect().top - 26;
-        const want = clamp((top + bot) / 2 - (pb[1] + pp[1]) / 2, -300, 300);
-        S.pyAdj = Math.abs(want - (S.pyAdj || 0)) < 1 ? want : (S.pyAdj || 0) + (want - (S.pyAdj || 0)) * 0.25;
-        PY += Math.round(S.pyAdj);
+    // Keep the ball and the hole clear of the HUD panels: project them, and if either would sit under a panel (the info box, the meter bar, the minimap,
+    // the club chip ...) slide the picture up or down, and shrink it a little if the two cannot both fit in the free space.
+    {
+      let k = 1, s = 0;
+      const fitPhase = S.mode === 'play' && ['aim', 'sweep', 'rise', 'flight', 'wait', 'gimme'].includes(S.phase) && !(S.greenView && !onGreen());
+      if (fitPhase) {
+        const rects = [];
+        for (const id of ['info', 'wind', 'mini', 'meterWrap', 'clubChip', 'clubs', 'camctl', 'btnMenuM', 'mBtns']) {
+          const el = $(id); if (!el) continue;
+          const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) continue;
+          rects.push({ l: r.left - 10, r: r.right + 10, t: r.top - 6, b: r.bottom + 6 });
+        }
+        const band = (x) => {
+          let T = 6, B = H - 6;
+          for (const r of rects) if (x >= r.l && x <= r.r) { if ((r.t + r.b) / 2 < H / 2) T = Math.max(T, r.b); else B = Math.min(B, r.t); }
+          return [T, B];
+        };
+        const pts = [];
+        const bq = S.fl ? flightPos() : [S.ball.x, h.h(S.ball.x, S.ball.z) + 0.1, S.ball.z], pb = proj(bq[0], bq[1], bq[2]);
+        if (pb && pb[0] > 0 && pb[0] < W) { const [T, B] = band(pb[0]); pts.push({ y: pb[1], T: T + 8, B: B - 14 }); }
+        // the hole only counts for putts and approach shots (pin within reach and roughly the way you are aiming); a drive may be pointing nowhere near it
+        const toPin = Math.atan2(h.pinZ - S.ball.z, h.pinX - S.ball.x), dAng = Math.abs(Math.atan2(Math.sin(toPin - curAz()), Math.cos(toPin - curAz())));
+        const reach = (clubMaxDist()[S.clubIdx] || 0) + 15, Dp = Math.hypot(h.pinX - S.ball.x, h.pinZ - S.ball.z);
+        const holeMatters = onGreen() || (Dp <= reach && dAng < 0.6);
+        if (holeMatters && S.phase !== 'flight' && S.phase !== 'wait') {
+          const pp = proj(h.pinX, h.h(h.pinX, h.pinZ), h.pinZ);
+          if (pp && pp[0] > 0 && pp[0] < W && pp[2] < 700) { const [T, B] = band(pp[0]); pts.push({ y: pp[1], T: T + 22, B: B - 10 }); }
+        }
+        if (pts.length) {
+          const PY0 = PY;
+          const yTop = Math.min(...pts.map(q => q.y)), yBot = Math.max(...pts.map(q => q.y));
+          const Ta = Math.max(...pts.filter(q => q.y === yTop).map(q => q.T)), Bb = Math.min(...pts.filter(q => q.y === yBot).map(q => q.B));
+          if (yBot - yTop > 1 && (yBot - yTop) > Bb - Ta) k = clamp((Bb - Ta) / (yBot - yTop), 0.5, 1);
+          const at = (y) => PY0 + (y - PY0) * k;
+          const lo = Ta - at(yTop), hi = Bb - at(yBot);
+          s = lo <= hi ? clamp(0, lo, hi) : (lo + hi) / 2;
+          s = clamp(s, -350, 350);
+        }
       }
-    } else S.pyAdj = 0;
+      S.fitK = S.fitK === undefined ? k : S.fitK + (k - S.fitK) * 0.25; S.fitS = S.fitS === undefined ? s : S.fitS + (s - S.fitS) * 0.25;
+      if (Math.abs(S.fitK - k) < 0.002) S.fitK = k; if (Math.abs(S.fitS - s) < 0.5) S.fitS = s;
+      foc *= S.fitK; PY += Math.round(S.fitS);
+    }
     const hy = PY + foc * Fy / hn;
     const gv = S.greenView && !onGreen();      // 'cut to the green' from the fairway
     // the tight putting render (green-only ground, big flag, small ball) only starts once the camera has actually flown in over the green,
@@ -953,7 +1005,7 @@
     if (!wantPutt) S.puttDraw = false;
     else if (!S.puttDraw) { const tg = addressCam(); if (Math.hypot(c.px - tg.px, c.py - tg.py, c.pz - tg.pz) < 9 && Math.hypot(c.lx - tg.lx, c.lz - tg.lz) < 9) S.puttDraw = true; }
     const putting = wantPutt && !!S.puttDraw;
-    const key = [c.px, c.py, c.pz, c.lx, c.ly, c.lz].map(v => v.toFixed(2)).join() + putting + zf.toFixed(2) + PY + W + H + S.ball.x.toFixed(1) + S.hi + S.markers + (S.lie === 'sand' && inBunker() ? 'S' : '');
+    const key = [c.px, c.py, c.pz, c.lx, c.ly, c.lz].map(v => v.toFixed(2)).join() + putting + zf.toFixed(2) + foc.toFixed(1) + PY + W + H + S.ball.x.toFixed(1) + S.hi + S.markers + (S.lie === 'sand' && inBunker() ? 'S' : '');
     // terrain mesh
     const vh = (x, z) => h.h(x, z);
     // --- smooth terrain: one flat-coloured base (rough) plus clean polygon overlays for each surface
@@ -1226,8 +1278,16 @@
             const bq = S.fl ? flightPos() : [S.ball.x, h.h(S.ball.x, S.ball.z), S.ball.z], pb = proj(bq[0], bq[1], bq[2]);
             if (pb) cupR = clamp(foc * BALL_R / pb[2], 4, 15) * (P.CUP_R / BALL_R) * base[2] / foc;
           }
-          poly(ring(cupR * 1.18), '#cfd3c8');      // lip of the cup
-          poly(ring(cupR), '#0a0a0a');
+          S.cupPx = cupR * foc / base[2];
+          if (putting) {
+            poly(ring(cupR * 1.18), '#cfd3c8');    // lip of the cup
+            poly(ring(cupR), '#0a0a0a');
+          } else {
+            // off the green the cup is a fixed-shape ellipse of a fixed on-screen size, so it cannot change as the camera rises and falls during the flight
+            const rx = S.cupPx, ry = rx * 0.42;
+            ctx.fillStyle = '#cfd3c8'; ctx.beginPath(); ctx.ellipse(base[0], base[1], rx * 1.18, ry * 1.18, 0, 0, 7); ctx.fill();
+            ctx.fillStyle = '#0a0a0a'; ctx.beginPath(); ctx.ellipse(base[0], base[1], rx, ry, 0, 0, 7); ctx.fill();
+          }
           ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = clamp(foc * 0.05 / base[2], 1.5, 4);
           ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
           const wd = h.wind, wm = Math.hypot(wd.x, wd.z) || 1, k = fh * 0.5 * (0.35 + 0.65 * Math.min(1, wd.mph / 18));
@@ -1399,7 +1459,7 @@
   document.addEventListener('pointermove', (e) => {
     const prev = tp.get(e.pointerId); if (!prev) return;
     tp.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (tp.size === 1) { if (S.phase === 'aim' || S.phase === 'sweep' || S.phase === 'rise') S.camYaw = clamp(S.camYaw + (e.clientX - prev.x) * 0.35, -120, 120); }
+    if (tp.size === 1) { if (S.phase === 'aim' || S.phase === 'sweep' || S.phase === 'rise') S.camYaw = clamp(S.camYaw + (e.clientX - prev.x) * 0.35, -120, 120); refreshWind(); }
     else if (tp.size === 2 && puttView()) S.zoom = clamp(z0 * pdist() / pd0, 0.45, 3.5);
   });
   ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, (e) => { tp.delete(e.pointerId); }));
