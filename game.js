@@ -1323,7 +1323,7 @@
     // aim line
     const az = curAz() + ((S.phase === 'sweep' || S.phase === 'rise') ? S.sw.ang * D2R : 0), bx = X(S.ball.x), bz2 = Z(S.ball.z);
     c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 2; c.setLineDash([8, 7]);
-    c.beginPath(); c.moveTo(bx, bz2); const aimLen = CLUBS[S.clubIdx].putter ? Math.min(D + 3, 60) : (S.clubDist[S.clubIdx] || 150);
+    c.beginPath(); c.moveTo(bx, bz2); const aimLen = CLUBS[S.clubIdx].putter ? Math.min(D + 3, 60) : (clubMaxDist()[S.clubIdx] || 150);   // the dotted line reaches the club's maximum carry
     c.lineTo(bx + Math.cos(az) * aimLen * sM, bz2 + Math.sin(az) * aimLen * sM); c.stroke(); c.setLineDash([]);
     if (!tg.pin) { c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 2; c.beginPath(); c.moveTo(X(tg.x) - 6, Z(tg.z) - 6); c.lineTo(X(tg.x) + 6, Z(tg.z) + 6); c.moveTo(X(tg.x) + 6, Z(tg.z) - 6); c.lineTo(X(tg.x) - 6, Z(tg.z) + 6); c.stroke(); }
     // ghost landing
